@@ -1,0 +1,211 @@
+<html lang="en"><head>
+		<title>Clouds</title>
+		<meta charset="utf-8">
+		<style type="text/css">
+
+			body {
+				background-color: #326696;
+				margin: 0px;
+				overflow: hidden;
+				font-family:Monospace;
+				font-size:13px;
+				text-align:center;
+				font-weight: bold;
+				text-align:center;
+			}
+
+			a {
+				color:#0078ff;
+			}
+
+		</style>
+	<script type="text/javascript" async="" src="http://www.google-analytics.com/ga.js"></script></head>
+	<body>
+
+		<script type="text/javascript">
+		  var _gaq = _gaq || [];
+		  _gaq.push(['_setAccount', 'UA-86951-7']);
+		  _gaq.push(['_trackPageview']);
+
+		  (function() {
+		    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+		    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+		    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(ga);
+		  })();
+		</script>
+
+		<script type="text/javascript" src="js/three.min.js"></script>
+		<script type="text/javascript" src="js/Detector.js"></script>
+
+		<script id="vs" type="x-shader/x-vertex">
+
+			varying vec2 vUv;
+
+			void main() {
+
+				vUv = uv;
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+			}
+
+		</script>
+
+		<script id="fs" type="x-shader/x-fragment">
+
+			uniform sampler2D map;
+
+			uniform vec3 fogColor;
+			uniform float fogNear;
+			uniform float fogFar;
+
+			varying vec2 vUv;
+
+			void main() {
+
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				float fogFactor = smoothstep( fogNear, fogFar, depth );
+
+				gl_FragColor = texture2D( map, vUv );
+				gl_FragColor.w *= pow( gl_FragCoord.z, 20.0 );
+				gl_FragColor = mix( gl_FragColor, vec4( fogColor, gl_FragColor.w ), fogFactor );
+
+			}
+
+		</script>
+
+		<script type="text/javascript">
+
+			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+			var container;
+			var camera, scene, renderer;
+			var mesh, geometry, material;
+
+			var mouseX = 0, mouseY = 0;
+			var start_time = Date.now();
+
+			var windowHalfX = window.innerWidth / 2;
+			var windowHalfY = window.innerHeight / 2;
+
+			init();
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				// Bg gradient
+
+				var canvas = document.createElement( 'canvas' );
+				canvas.width = 32;
+				canvas.height = window.innerHeight;
+
+				var context = canvas.getContext( '2d' );
+
+				var gradient = context.createLinearGradient( 0, 0, 0, canvas.height );
+				gradient.addColorStop(0, "#1e4877");
+				gradient.addColorStop(0.5, "#4584b4");
+
+				context.fillStyle = gradient;
+				context.fillRect(0, 0, canvas.width, canvas.height);
+
+				container.style.background = 'url(' + canvas.toDataURL('image/png') + ')';
+				container.style.backgroundSize = '32px 100%';
+
+				//
+
+				camera = new THREE.PerspectiveCamera( 30, window.innerWidth / window.innerHeight, 1, 3000 );
+				camera.position.z = 6000;
+
+				scene = new THREE.Scene();
+
+				geometry = new THREE.Geometry();
+
+				var texture = THREE.ImageUtils.loadTexture( 'cloud10.png', null, animate );
+				texture.magFilter = THREE.LinearMipMapLinearFilter;
+				texture.minFilter = THREE.LinearMipMapLinearFilter;
+
+				var fog = new THREE.Fog( 0x4584b4, - 100, 3000 );
+
+				material = new THREE.ShaderMaterial( {
+
+					uniforms: {
+
+						"map": { type: "t", value: texture },
+						"fogColor" : { type: "c", value: fog.color },
+						"fogNear" : { type: "f", value: fog.near },
+						"fogFar" : { type: "f", value: fog.far },
+
+					},
+					vertexShader: document.getElementById( 'vs' ).textContent,
+					fragmentShader: document.getElementById( 'fs' ).textContent,
+					depthWrite: false,
+					depthTest: false,
+					transparent: true
+
+				} );
+
+				var plane = new THREE.Mesh( new THREE.PlaneGeometry( 64, 64 ) );
+
+				for ( var i = 0; i < 8000; i++ ) {
+
+					plane.position.x = Math.random() * 1000 - 500;
+					plane.position.y = - Math.random() * Math.random() * 200 - 15;
+					plane.position.z = i;
+					plane.rotation.z = Math.random() * Math.PI;
+					plane.scale.x = plane.scale.y = Math.random() * Math.random() * 1.5 + 0.5;
+
+					THREE.GeometryUtils.merge( geometry, plane );
+
+				}
+
+				mesh = new THREE.Mesh( geometry, material );
+				scene.add( mesh );
+
+				mesh = new THREE.Mesh( geometry, material );
+				mesh.position.z = - 8000;
+				scene.add( mesh );
+
+				renderer = new THREE.WebGLRenderer( { antialias: false } );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				container.appendChild( renderer.domElement );
+
+				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function onDocumentMouseMove( event ) {
+
+				mouseX = ( event.clientX - windowHalfX ) * 0.25;
+				mouseY = ( event.clientY - windowHalfY ) * 0.15;
+
+			}
+
+			function onWindowResize( event ) {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				position = ( ( Date.now() - start_time ) * 0.03 ) % 8000;
+
+				camera.position.x += ( mouseX - camera.position.x ) * 0.01;
+				camera.position.y += ( - mouseY - camera.position.y ) * 0.01;
+				camera.position.z = - position + 8000;
+
+				renderer.render( scene, camera );
+
+			}
+
+		</script><div style="background-image: url(data:image/png;base64,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); background-size: 32px 100%; background-position: initial initial; background-repeat: initial initial;"><canvas width="1920" height="628" style="width: 1920px; height: 628px;"></canvas></div>
+
+
+</body></html>
